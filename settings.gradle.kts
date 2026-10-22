@@ -23,5 +23,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "HavalShisuku"
-include(":app")
- 
+include(":app", ":mqtt-gateway")
