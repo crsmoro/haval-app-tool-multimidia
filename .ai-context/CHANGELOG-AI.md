@@ -83,3 +83,16 @@ provided an AR override and did not exercise the controller's Navigation path.
 - Autorizada execução da CI do PR168 sobre a árvore pública da preview.
 - Novo commit documental sem [skip ci]; implementação e regressões mantidas.
 - Resultados pendentes, sem assinatura, release, integração ou acesso ao veículo.
+
+## 19/11/2026 — HUD para Waze nativo
+
+- Na branch `preview`, adicionada fonte de navegação nativa por Acessibilidade (pacote `com.waze`),
+  com prioridade sobre Android Auto, fallback ao sair do Waze, parser de rua/distância e direção
+  desconhecida sem seta inventada.
+- Captura local de `navBarDirection` é disparada somente em nova etapa e processa um recorte via
+  Shizuku; frames não são gravados nem enviados para fora da central.
+- `:app:testDebugUnitTest`: PASS — 827 testes, 0 falhas/erros, 1 ignorado. Probe temporário em
+  recorte real reconheceu `TURN_RIGHT`; fixture e probe removidos da árvore.
+- `:app:assembleDebug`: PASS; APK em `app/build/outputs/apk/debug/app-debug.apk`.
+- `git diff --check`: PASS. Nenhuma instalação ou configuração de Acessibilidade foi feita na
+  central; integração ponta a ponta e outros ícones ainda precisam validação física.

@@ -158,6 +158,20 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
+        <!-- Separate, package-scoped service: content retrieval is limited to native Waze. -->
+        <service android:name=".services.WazeNativeNavigationAccessibilityService"
+            android:label="@string/waze_native_accessibility_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/waze_native_accessibility_service_config" />
+        </service>
+
         <receiver
             android:name=".broadcastReceivers.BootReceiver"
             android:directBootAware="true"

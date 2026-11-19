@@ -69,6 +69,8 @@ object HudOverlayController {
     // Main thread.
     /** Latest active guidance, kept [TBT_HIDE_DEBOUNCE_MS] past its end; null = no route. */
     private var navDirections: AndroidAutoNavigationTelemetry.Directions? = null
+    /** Scoped accessibility feed from the native Waze app; it wins only while Waze is foreground. */
+    private var nativeWazeDirections: AndroidAutoNavigationTelemetry.Directions? = null
     private var demoDirections: AndroidAutoNavigationTelemetry.Directions? = null
     /** Normal host: a window-manager overlay on the HUD display, no activity behind it. */
     private var overlay: HudOverlayView? = null
@@ -79,6 +81,7 @@ object HudOverlayController {
     private var launchBlockedUntilMs = 0L
     private var configCache: HudOverlayModel.Config? = null
     private var navReceivedAtMs = 0L
+    private var nativeWazeReceivedAtMs = 0L
     /** The current maneuver still carries the previous one's distance (see distanceStale). */
     private var navDistanceStale = false
     private var demoSetAtMs = 0L
@@ -163,11 +166,35 @@ object HudOverlayController {
             navReceivedAtMs = SystemClock.elapsedRealtime()
             // ~1 Hz feed: only redraw when what the HUD shows changes (turn, distance, trip line).
             val config = config()
-            if (previous == null || HudOverlayModel.tbtFor(previous, config) != HudOverlayModel.tbtFor(update, config)) {
+            if (nativeWazeDirections == null &&
+                (previous == null || HudOverlayModel.tbtFor(previous, config) != HudOverlayModel.tbtFor(update, config))) {
                 publish()
             }
         }
     }
+
+    /** Native Waze accessibility guidance. Null clears it and reveals any still-active AA route. */
+    fun onNativeWazeDirections(update: AndroidAutoNavigationTelemetry.Directions?) {
+        main.post {
+            val beforeSelection = navigationSelection()
+            val before = currentDirections()
+            val hudConfig = config()
+            val beforeTbt = before?.let { HudOverlayModel.tbtFor(it, hudConfig) }
+            nativeWazeDirections = update?.takeIf { it.active }
+            nativeWazeReceivedAtMs = if (nativeWazeDirections != null) SystemClock.elapsedRealtime() else 0L
+            val afterSelection = navigationSelection()
+            val after = currentDirections()
+            val afterTbt = after?.let { HudOverlayModel.tbtFor(it, hudConfig) }
+            if (demoDirections == null &&
+                (beforeSelection.kind != afterSelection.kind || beforeTbt != afterTbt)) {
+                publish()
+            }
+        }
+    }
+
+    private fun navigationSelection() = HudNavigationSource.select(navDirections, nativeWazeDirections)
+
+    private fun currentDirections() = demoDirections ?: navigationSelection().directions
 
     private fun config(): HudOverlayModel.Config {
         val saved = configCache ?: HudOverlaySettings.load().also { configCache = it }
@@ -285,6 +312,7 @@ object HudOverlayController {
      * OSM cache (the 2026-10-27 left turns drawn to the right near the beach couldn't be).
      */
     private fun trace(frame: HudOverlayModel.Frame) {
+        if (nativeWazeDirections != null) return
         val dirs = navDirections ?: return
         if (!dirs.active || demoDirections != null || demoMapStartMs != 0L || HudMapFeed.poseLat.isNaN()) return
         val now = android.os.SystemClock.elapsedRealtime()
@@ -323,7 +351,7 @@ object HudOverlayController {
     private fun buildFrame(): HudOverlayModel.Frame {
         return HudOverlayModel.frameFor(
             config = config(),
-            directions = demoDirections ?: navDirections,
+            directions = currentDirections(),
             powerPercent = if (demoDriveStartMs != 0L) demoPower else powerPercent.get(),
             rpmTenths = if (demoDriveStartMs != 0L) demoRpm else rpmTenths.get().takeIf { it != NO_RPM },
             // On the ring AA's distance is to the exit: the roundabout itself is here.
@@ -358,7 +386,7 @@ object HudOverlayController {
     }
 
     private fun trackRoundabout() {
-        val dirs = demoDirections ?: navDirections
+        val dirs = currentDirections()
         val step = roundaboutStep(dirs)
         val meters = if (distanceStale()) null else dirs?.let { HudOverlayModel.distanceMeters(it.distance, it.distanceM)?.toFloat() }
         if (rbTracker.onUpdate(step, meters)) {
@@ -369,7 +397,8 @@ object HudOverlayController {
         }
     }
 
-    private fun distanceStale() = demoDirections == null && navDistanceStale
+    private fun distanceStale() = demoDirections == null &&
+        navigationSelection().kind == HudNavigationSource.Kind.ANDROID_AUTO && navDistanceStale
 
     /** m/s the AR arrow moves at: the car's speed, or the demo drive's. */
     private fun speedMps(): Double = if (demoDriveStartMs != 0L) DEMO_DRIVE_SPEED_MPS.toDouble() else speedKmh / 3.6
@@ -384,7 +413,7 @@ object HudOverlayController {
      * other maneuvers.
      */
     private fun roundaboutProgress(): Float {
-        val dirs = (demoDirections ?: navDirections)?.takeIf { it.active }
+        val dirs = currentDirections()?.takeIf { it.active }
         val travel = dirs?.turnAngle?.takeIf { it in 1..360 }
         val isRoundabout = dirs != null &&
             HudOverlayModel.resolveTurnIcon(dirs.turn) == "ROUNDABOUT"
@@ -412,11 +441,15 @@ object HudOverlayController {
      */
     private fun arMetersEstimate(): Float? {
         if (config().layout != HudOverlayModel.Layout.AR) return null
-        val dirs = (demoDirections ?: navDirections)?.takeIf { it.active } ?: return null
+        val dirs = currentDirections()?.takeIf { it.active } ?: return null
         if (distanceStale()) return null
         val base = HudOverlayModel.distanceMeters(dirs.distance, dirs.distanceM) ?: return null
         if (base > HudArArrow.SMOOTH_WITHIN_M) return null
-        val since = if (demoDirections != null) demoSetAtMs else navReceivedAtMs
+        val since = when {
+            demoDirections != null -> demoSetAtMs
+            navigationSelection().kind == HudNavigationSource.Kind.NATIVE_WAZE -> nativeWazeReceivedAtMs
+            else -> navReceivedAtMs
+        }
         val elapsedMs = (SystemClock.elapsedRealtime() - since).coerceIn(0L, AR_EXTRAPOLATE_MAX_MS)
         return (base - speedKmh / 3.6 * elapsedMs / 1000.0).coerceAtLeast(0.0).toFloat()
     }

@@ -1,6 +1,7 @@
 package br.com.redesurftank.havalshisuku.hud
 
 import br.com.redesurftank.havalshisuku.managers.AndroidAutoNavigationTelemetry
+import br.com.redesurftank.havalshisuku.managers.WazeNativeNavigationParser
 import kotlin.math.roundToInt
 
 /**
@@ -1384,7 +1385,8 @@ object HudOverlayModel {
         val (value, unit) = splitDistance(d.distance, d.distanceM)
         val lanes = d.lanes.map { laneArrows(it) }
         val meters = distanceMeters(d.distance, d.distanceM)
-        val icon = hudIcon(d.turn)
+        val unknownWazeTurn = d.turn.equals(WazeNativeNavigationParser.UNKNOWN_TURN, ignoreCase = true)
+        val icon = if (unknownWazeTurn) "" else hudIcon(d.turn)
         // The trip's first step, "head towards ...", always comes at 0 m: "^ 0 m" read as a
         // turn right here (owner, 2026-10-27). Only the trip line until the first real maneuver.
         val hidden = turnHidden(config, meters) || d.turn.equals("DEPART", ignoreCase = true)
@@ -1394,7 +1396,7 @@ object HudOverlayModel {
         // side, a ferry, a roundabout without its exit) or no distance yet (AA sends the new step
         // before its distance) stays in AR, straight on: dropping to the plain row took the 3D
         // map away at junctions (owner, 2026-10-25).
-        val arAngle = if (config.layout != Layout.AR) null else HudArArrow.angleFor(d.turn) ?: 0f
+        val arAngle = if (config.layout != Layout.AR || unknownWazeTurn) null else HudArArrow.angleFor(d.turn) ?: 0f
         val style = when {
             // AR keeps the centre arrow with lanes too; the lanes go to the left column.
             arAngle != null -> TbtStyle.AR
@@ -1413,7 +1415,7 @@ object HudOverlayModel {
             // With the maneuver hidden the trip line is all there is, so it stays.
             trip = if (config.trip && (icon != "DESTINATION" || hidden)) tripLabel(d.remainingM, d.remainingS) else "",
             turnHidden = hidden,
-            googleIcon = if (config.iconStyle == IconStyle.GOOGLE) googleIcon(d.turn, d.roundaboutClockwise == true) else null,
+            googleIcon = if (!unknownWazeTurn && config.iconStyle == IconStyle.GOOGLE) googleIcon(d.turn, d.roundaboutClockwise == true) else null,
             tripDistance = if (config.trip) tripParts(d.remainingM, d.remainingS).first.orEmpty() else "",
             tripTime = if (config.trip) tripParts(d.remainingM, d.remainingS).second.orEmpty() else "",
             arAngle = arAngle.takeIf { style == TbtStyle.AR },
@@ -1423,7 +1425,7 @@ object HudOverlayModel {
             exitAngle = exitAngle,
             roundaboutClockwise = d.roundaboutClockwise == true,
             guideMeters = meters?.toFloat(),
-            guideAngle = HudArArrow.angleFor(d.turn),
+            guideAngle = if (unknownWazeTurn) null else HudArArrow.angleFor(d.turn),
             arDestination = HudArArrow.destinationSide(d.turn).takeIf { style == TbtStyle.AR },
             arPlacement = config.arPlacement
         )

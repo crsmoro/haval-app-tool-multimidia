@@ -154,3 +154,38 @@ regressões do PR168. O código e os testes do HUD permanecem idênticos ao comm
 Resultados desta execução ainda pendentes. Usar somente o SHA e os relatórios da
 CI desta árvore ao atualizar a validação pública. PR continua como rascunho.
 Comandos: git diff/check/commit/push; consulta de runs/jobs da CI pelo GitHub.
+
+## HUD nativo do Waze — 2026-11-19
+
+### Estado
+
+- Repositório: `/opt/data/haval-app-tool-multimidia`, branch `preview`.
+- Base antes das alterações: `c93373e9`; `origin/preview` e `upstream/preview` estavam alinhadas.
+- Adicionado serviço de Acessibilidade dedicado, escopado ao pacote `com.waze`, que lê os IDs
+  `navBarStreetLine`, `navBarDistance` e `navBarDirection`. A `AccessibilityService` existente
+  repassa mudanças de app em primeiro plano para limpar a fonte Waze ao sair.
+- `HudNavigationSource` prioriza Waze nativo ativo; quando limpo, retorna ao Android Auto ativo.
+  Parser, gate por etapa e fallback de manobra desconhecida têm testes unitários.
+- A captura usa `screencap -p | base64` via Shizuku, somente ao detectar nova etapa; recorta pela
+  caixa do `navBarDirection`, classifica localmente e mantém “desconhecido” em falha/ambiguidade.
+  A captura é em memória, sem arquivo persistente ou envio externo.
+- O serviço precisa ser habilitado manualmente em Configurações > Acessibilidade; manter também
+  o serviço Haval existente ativo para reconhecer a saída do Waze e restaurar fallback AA.
+
+### Validação
+
+- `:app:testDebugUnitTest`: PASS — 827 testes, 0 falhas, 0 erros, 1 ignorado.
+- Um teste temporário classificou `TURN_RIGHT` em um recorte real do ícone do Waze; teste e fixture
+  foram removidos da árvore depois da execução.
+- `:app:assembleDebug`: PASS. APK: `/opt/data/haval-app-tool-multimidia/app/build/outputs/apk/debug/app-debug.apk`.
+- `screencap -p | base64` foi exercitado via ADB shell e produziu PNG válido 1920×720; o pipeline
+  chamado pelo app (Shizuku) ainda não foi executado no serviço instalado.
+- `git diff --check`: PASS. Nenhum APK foi instalado, nenhum serviço/configuração foi habilitado na
+  central e não houve teste ponta a ponta.
+
+### Riscos e próximos passos
+
+- Só um ícone real à direita foi validado; curvas à esquerda, seguir em frente, temas/escala do Waze
+  e mudanças de versão continuam sem fixture real. Saídas ambíguas devem continuar sem seta.
+- Instalar a build e habilitar o serviço exige autorização/ação do usuário; depois validar rua,
+  distância, setas, saída do Waze e retorno ao Android Auto na central.

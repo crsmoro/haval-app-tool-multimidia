@@ -15,7 +15,9 @@ public class AccessibilityService extends android.accessibilityservice.Accessibi
         if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             CharSequence pkg = event.getPackageName();
             if (pkg != null) {
-                DisplayAppLauncher.INSTANCE.onAppWindowChanged(pkg.toString());
+                String packageName = pkg.toString();
+                DisplayAppLauncher.INSTANCE.onAppWindowChanged(packageName);
+                WazeNativeNavigationAccessibilityService.onForegroundPackageChanged(packageName);
             }
         }
     }

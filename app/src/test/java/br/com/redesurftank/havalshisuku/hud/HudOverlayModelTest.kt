@@ -4,12 +4,36 @@ import br.com.redesurftank.havalshisuku.hud.HudOverlayModel.LaneArrow
 import br.com.redesurftank.havalshisuku.hud.HudOverlayModel.LaneShape
 import br.com.redesurftank.havalshisuku.managers.AndroidAutoNavigationTelemetry.Directions
 import br.com.redesurftank.havalshisuku.managers.AndroidAutoNavigationTelemetry.LaneDirection
+import br.com.redesurftank.havalshisuku.managers.WazeNativeNavigationParser
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class HudOverlayModelTest {
+    @Test
+    fun `unknown Waze icon keeps street and distance without inventing a straight arrow`() {
+        val directions = Directions(
+            active = true,
+            distance = "50 m",
+            distanceM = 50,
+            turn = WazeNativeNavigationParser.UNKNOWN_TURN,
+            street = "R. Almirante Jaceguay"
+        )
+        val tbt = HudOverlayModel.tbtFor(
+            directions,
+            HudOverlayModel.Config(layout = HudOverlayModel.Layout.AR)
+        )!!
+
+        assertEquals("", tbt.icon)
+        assertEquals(HudOverlayModel.TbtStyle.HERO, tbt.style)
+        assertNull(tbt.arAngle)
+        assertEquals("50", tbt.distanceValue)
+        assertEquals("m", tbt.distanceUnit)
+        assertEquals("R. Almirante Jaceguay", tbt.street)
+        assertTrue(!tbt.turnHidden)
+    }
+
     @Test
     fun `turn tokens fold like the cluster card`() {
         assertEquals("TURN_RIGHT", HudOverlayModel.resolveTurnIcon("turn_right"))

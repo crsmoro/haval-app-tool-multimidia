@@ -14,6 +14,23 @@ Atualizado em: 2026-10-20
 - A primeira supressao de cada ciclo registra `aa_cluster_session_stop_suppressed` com status e
   idade da evidencia. CarPlay, bridge WebView, layout e geometria dos displays nao sao alterados.
 
+## Atualizacao 2026-11-19 - HUD para Waze nativo
+
+- `WazeNativeNavigationAccessibilityService` fornece rua e distancia a partir dos IDs de view
+  `navBarStreetLine` e `navBarDistance`; a configuracao de acessibilidade limita eventos e leitura
+  de conteudo ao pacote `com.waze`.
+- A `AccessibilityService` existente informa a troca do app em primeiro plano. Waze nativo ativo
+  tem prioridade sobre Android Auto; ao sair do Waze, o controlador limpa essa fonte e volta para
+  Android Auto se ainda estiver ativo.
+- O ícone sem descrição é amostrado somente ao detectar novo passo (rua alterada ou distância
+  reiniciada). A captura de tela é transmitida via Shizuku, recortada pelos limites de `navBarDirection`
+  e classificada localmente; não é gravada em arquivo nem enviada para fora da central. Se a captura
+  ou classificação falhar/ficar ambígua, mantém a direção desconhecida e não inventa seta.
+- O serviço separado precisa ser habilitado pelo usuário em Configurações > Acessibilidade. Nenhuma
+  configuração foi ativada e nenhum APK foi instalado na central durante a implementação.
+- Validação local: `:app:testDebugUnitTest` passou, incluindo um recorte real de uma manobra à
+  direita do Waze. Outras manobras/temas e a integração na central continuam sem validação física.
+
 ## Fluxo Identificado
 
 1. `App.onCreate()` salva application context, aplica mounts Android Auto quando instalados e inicia `ForegroundService`.
